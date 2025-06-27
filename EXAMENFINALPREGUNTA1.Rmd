@@ -1,0 +1,100 @@
+---
+title: "final"
+output: html_document
+date: "2025-06-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rio)
+datafinal=import("dataOK_all.xlsx")
+```
+
+
+```{r}
+str(datafinal)
+```
+
+
+```{r}
+datafinal <- datafinal %>%
+  mutate(
+    tasa_fallecidos = (covidFallecidos / covidPositivos) * 1000  # Tasa por cada 1000 contagiados
+  )
+```
+
+
+```{r}
+# Calcular variables y normalizar (escala 0-1)
+datafinal <- datafinal %>%
+  filter(provincia != "LIMA") %>%
+  mutate(
+    pct_agua_red = (agua1_Red / agua10_Total) * 100,
+    razon_votos = Keiko / (Castillo + 1e-6),  # Evitar división por cero
+    tasa_fallecidos_normal = tasa_fallecidos / max(tasa_fallecidos, na.rm = TRUE),
+    pct_agua_red_normal = pct_agua_red / max(pct_agua_red, na.rm = TRUE),
+    razon_votos_normal = razon_votos / max(razon_votos, na.rm = TRUE)
+  ) %>%
+  select(provincia, pct_agua_red_normal, razon_votos_normal, tasa_fallecidos_normal)
+```
+
+
+```{r}
+set.seed(123)
+clusters_kmeans <- kmeans(datafinal[, 2:4], centers = 3, nstart = 20)
+datafinal$cluster_kmeans <- as.factor(clusters_kmeans$cluster)
+```
+
+```{r}
+dist_matrix <- dist(datafinal[, 2:4], method = "euclidean")
+hclust_result <- hclust(dist_matrix, method = "ward.D2")
+datafinal$cluster_hier <- cutree(hclust_result, k = 3)
+```
+
+```{r}
+# Asumo que tu dataframe se llama 'datafinalL' (no 'DATAFINAL_clean')
+data_for_cluster <- datafinal %>%
+  select(pct_agua_red_normal, razon_votos_normal, tasa_fallecidos_normal)
+
+# Matriz de distancia y clustering
+dist_matrix <- dist(data_for_cluster, method = "euclidean")
+hc <- hclust(dist_matrix, method = "ward.D2")
+
+# ------------------------------------------------------
+# [3] Dendrograma personalizado con ggplot2 + ggdendro
+# ------------------------------------------------------
+dendro_plot <- ggdendrogram(hc, rotate = TRUE, theme_dendro = FALSE, size = 2) +
+  labs(
+    title = "Agrupamiento de Provincias del Perú",
+    subtitle = "Variables: Agua de red, Razón Keiko/Castillo, Tasa de fallecidos",
+    x = "Provincias",
+    y = "Distancia (Ward.D2)",
+    caption = "Fuente: Datos normalizados (excluyendo Lima)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 8, color = "darkblue"),
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(face = "bold", hjust = 0.5, color = "#2c3e50"),
+    plot.subtitle = element_text(hjust = 0.5, color = "#7f8c8d"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+  scale_y_continuous(expand = c(0.02, 0))  # Ajustar márgenes
+
+# Mostrar el gráfico
+print(dendro_plot)
+
+```
+
+Pregunta 2
+
+
+
+
+
+
+

@@ -1,0 +1,259 @@
+---
+title: "EXAMENFINALPREGUNTA2"
+output: html_document
+date: "2025-06-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+arreglando energia
+
+```{r}
+library(rio)
+energiaconsumo=import("Energy consumption per capita.csv")
+```
+
+```{r}
+energiaconsumo<- energiaconsumo %>%
+  select(name, "Energy_consumption_per_capita_(Btu/person)" = `Btu/person`)
+```
+
+```{r}
+electricidad=import("Electricity - installed generating capacity.csv")
+```
+
+```{r}
+electricidad <- electricidad %>%
+  select(name, "Electricity_(kW)" = `kW`)
+```
+
+```{r}
+carbono=import("Carbon dioxide emissions.csv")
+```
+
+```{r}
+carbono<- carbono %>%
+  select(name, "CO2_emissions_(metric_tonnes)" = `metric tonnes of CO2`)
+```
+
+MERGE - ENERGIA
+
+```{r}
+library(dplyr)
+
+# Merge paso a paso (left_join para conservar todos los países)
+merged_data <- energiaconsumo %>%
+  left_join(electricidad, by = "name") %>%
+  left_join(carbono, by = "name")
+
+# Opcional: Ordenar por país
+merged_data <- merged_data %>% arrange(name)
+
+# Ver resultado
+head(merged_data)
+```
+
+
+```{r}
+write.csv(merged_data, "datos_combinados_energia_electricidad_co2.csv", row.names = FALSE)
+```
+
+arreglando comunicacion
+
+```{r}
+telefonoscelulares=import("Telephones - mobile cellular.csv")
+```
+
+```{r}
+telefonos_fl=import("Telephones - fixed lines (1).csv")
+```
+
+
+```{r}
+suscripciones=import("Broadband - fixed subscriptions.csv")
+```
+
+```{r}
+library(dplyr)
+
+# 1. telefonos_fl (Líneas fijas)
+telefonos_fl<- telefonos_fl %>%
+  select(name, "Fixed_telephone_lines" = value)
+
+# 2. telefonoscelulares (Móviles)
+telefonoscelulares <- telefonoscelulares %>%
+  select(name, "Mobile_subscriptions" = value)
+
+# 3. suscripciones (Suscripciones totales)
+suscripciones<- suscripciones %>%
+  select(name, "Total_telecom_subscriptions" = value)
+```
+
+```{r}
+telecom_merged <- telefonos_fl%>%
+  full_join(telefonoscelulares, by = "name") %>%
+  full_join(suscripciones, by = "name") %>%
+  arrange(name)  # Orden alfabético
+```
+
+```{r}
+write.csv(telecom_merged, "datos_combinados_telecom.csv", row.names = FALSE)
+```
+
+ECONOMIA
+
+
+```{r}
+empleo=import("Youth unemployment rate.csv")   deuda=import("Public debt.csv") 
+inflacion=import("Inflation rate.csv")
+deudaexterna=import("Debt external.csv")
+```
+
+```{r}
+str(deudaexterna)
+```
+
+merge 
+
+```{r}
+library(dplyr)
+
+# 1. empleo (Desempleo juvenil)
+empleo <- empleo %>%
+  select(name, "Youth_unemployment_rate" = `%`)
+
+# 2. deuda (Deuda pública)
+deuda <- deuda %>%
+  select(name, "Public_debt_GDP" = `% of GDP`)
+
+# 3. inflacion (Tasa de inflación)
+inflacion<- inflacion %>%
+  select(name, "Inflation_rate" = `%`)
+
+# 4. deudaexterna (Deuda externa)
+deudaexterna <- deudaexterna %>%
+  select(name, "External_debt_USD" = value) %>%
+  mutate(External_debt_USD = gsub("\\$|,", "", External_debt_USD))  # Eliminar "$" y comas
+```
+
+```{r}
+economy_merged <- empleo %>%
+  full_join(deuda, by = "name") %>%
+  full_join(inflacion, by = "name") %>%
+  full_join(deudaexterna, by = "name") %>%
+  arrange(name)  # Orden alfabético
+```
+
+```{r}
+write.csv(economy_merged, "datos_combinados_economy.csv", row.names = FALSE)
+```
+
+
+merge general 
+
+```{r}
+economy=import("datos_combinados_economy.csv")
+```
+
+```{r}
+energía=import("datos_combinados_energia_electricidad_co2.csv")
+```
+
+```{r}
+comunicacion=import("datos_combinados_telecom.csv")
+```
+
+merge final 
+
+```{r}
+library(dplyr)
+
+# Merge completo (full_join para conservar todos los países y variables)
+final_merged <- economy %>%
+  full_join(energía, by = "name") %>%
+  full_join(comunicacion, by = "name") %>%
+  arrange(name)  # Orden alfabético por país
+
+# Ver estructura del resultado
+str(final_merged)
+```
+
+```{r}
+telefonos <- final_merged$Fixed_telephone_lines
+df_clean <- final_merged %>% filter(complete.cases(select(., -Fixed_telephone_lines)))
+final$Fixed_telephone_lines <- telefonos[complete.cases(select(final_merged, -Fixed_telephone_lines))]
+```
+
+
+```{r}
+library(dplyr)
+library(readr)
+
+final_clean <- final_merged %>%
+  mutate(
+    across(c(Inflation_rate, `Energy_consumption_per_capita(Btu/person)`, 
+            `Electricity(kW)`, `CO2_emissions(metric_tonnes)`,
+            Fixed_telephone_lines, Mobile_subscriptions,
+            Total_telecom_subscriptions),
+           ~parse_number(as.character(.))),
+    Inflation_rate = as.numeric(Inflation_rate)
+  )
+```
+
+```{r}
+final_clean <- final_merged %>%
+  rename(
+    Energy_consumption = `Energy_consumption_per_capita(Btu/person)`,
+    Electricity = `Electricity(kW)`,
+    CO2_emissions = `CO2_emissions(metric_tonnes)`
+  ) %>%
+  mutate(
+    across(c(Inflation_rate, Energy_consumption, Electricity,
+            CO2_emissions, Fixed_telephone_lines, Mobile_subscriptions,
+            Total_telecom_subscriptions),
+           ~parse_number(as.character(.))),
+    Inflation_rate = as.numeric(Inflation_rate)
+```
+
+
+```{r}
+library(dplyr)
+library(readr)
+library(broom)
+
+## ---------------------------
+## 1. Limpieza y preparación de datos
+## ---------------------------
+
+# Renombrar columnas problemáticas y convertir a numérico
+final_clean <- final_merged %>%
+  rename(
+    energia = `Energy_consumption_per_capita(Btu/person)`,
+    electricidad = `Electricity(kW)`,
+    co2 = `CO2_emissions(metric_tonnes)`,
+    lineas_fijas = Fixed_telephone_lines,
+    moviles = Mobile_subscriptions,
+    total_telecom = Total_telecom_subscriptions
+  ) %>%
+  mutate(
+    across(c(Inflation_rate, energia, electricidad, co2, lineas_fijas, moviles, total_telecom),
+           ~parse_number(as.character(.))),
+    Inflation_rate = as.numeric(Inflation_rate)
+  
+# Filtrar casos completos para las variables de interés
+final_clean <- final_clean %>%
+  filter(complete.cases(select(., c(Youth_unemployment_rate, Public_debt_GDP, Inflation_rate,
+                                  lineas_fijas, moviles, total_telecom,
+                                  energia, electricidad, co2))))
+
+## ---------------------------
+## 2. Realizar las 3 regresiones
+## ---------------------------
+
+# Regresión 1: Desemple
+```
+
+
+
